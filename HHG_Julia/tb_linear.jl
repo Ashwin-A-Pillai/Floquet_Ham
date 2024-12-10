@@ -35,10 +35,11 @@ function parse_commandline()
         "--nmax"
             help = "max number of modes"
             arg_type = Int
-            default  = TB_parms.max_modes
+            default  = TB_parms.max_mode
         "--F"
             help = "Field intensity"
             arg_type = Float64
+            default  = TB_parms.F
         "--omega"
             help = "Field frequency"
             arg_type = Float64
@@ -130,6 +131,8 @@ end
 
 function main()
     parsed_args = parse_commandline()
+    #
+    println("\n\n * * * TB-Floquet code * * * \n\n")
     #
     # generate k-points list
     # 
