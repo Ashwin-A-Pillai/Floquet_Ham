@@ -7,7 +7,8 @@ using LinearAlgebra
 using PyPlot
 using Bessels
 using ArgParse
-using TB_parms
+include("tb_parms.jl")
+using .TB_parms
 
 
 function parse_commandline()
@@ -26,24 +27,30 @@ function parse_commandline()
         "--Q"
             help = "gap parameter"
             arg_type = Float64
+            default  = TB_parms.Q
         "--nkpt"
             help = "number of k-ponints"
             arg_type = Int
+            default  = TB_parms.nkpt
         "--nmax"
             help = "max number of modes"
             arg_type = Int
+            default  = TB_parms.max_modes
         "--F"
             help = "Field intensity"
             arg_type = Float64
         "--omega"
             help = "Field frequency"
             arg_type = Float64
+            default  = TB_parms.omega
         "--tstep"
             help = "Time-step for real-time dynamics"
             arg_type = Float64
+            default  = TB_parms.tstep
         "--nsteps"
             help = "Number of steps for real-time dynamics"
             arg_type = Int
+            default  = TB_parms.n_steps
     end
 
     return parse_args(s)
@@ -214,8 +221,6 @@ end
 
 function time_evolution(ψ,time;t0=0.0)
         A_t=0.0
-        if time>t0
-           A_t=sim(omega(time-t0)
-
+end
 
 main()
