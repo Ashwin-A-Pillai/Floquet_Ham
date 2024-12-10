@@ -13,6 +13,8 @@ def cur(params, vec_k ,t):
   A_m = A_vector(w, A, 0, Tot, t)
   num = (H_p-H_m)/dt
   den = (A_p-A_m)/dt
+  if np.allclose(den, 0):
+        raise ZeroDivisionError("Denominator in current operator calculation is zero.")
   I[:,:] = num/den
   return I
 
@@ -38,3 +40,26 @@ def total_current(params,psi,k_space,T_spc):
        LI = LI + np.vdot(psi[tp,kp,:],RI)
     I_full[tp] = LI
    return I_full
+
+def HHC(params,chi_mode, w_k, orthonormal, F_modes,k_space,T_spc):
+   hdim,a_cc, Nk, Nm = params[0], params[2], params[9], params[11]
+   Ia_H = np.zeros((Nm,Nk,Nm * hdim),dtype=np.cdouble)
+   I_H = np.zeros(Nm,dtype=np.cdouble)
+   #chi_mode = np.zeros((Nk, Nm * hdim, Nm, hdim), dtype=np.cdouble)
+   for N in range(Nm):
+    Left_0 = 0.0+0.0j 
+    for k,alpha in enumerate(orthonormal):
+      for kp,vec_k in enumerate(k_space):
+        I_mod = cur_mode(F_modes, params,vec_k, T_spc)
+        Left = 0.0+0.0j
+        for l in range(Nm):
+          Right = I_mod[l,:,:]@chi_mode[kp, alpha, l, :]
+          for n in range(Nm):
+            if((n-l+N)<Nm):
+              Left = Left + np.vdot(chi_mode[kp, alpha, n-l+N, :],Right)
+        Ia_H[N,kp,k] = Left
+        Left_0 = Left_0 + abs(w_k[kp,k])**2*Ia_H[N,kp,alpha]
+    I_H[N] = Left_0/(2*a_cc)
+   return I_H   
+
+          

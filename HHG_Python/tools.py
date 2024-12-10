@@ -1,6 +1,7 @@
 import numpy as np
 from fractions import Fraction as frac
 
+from Ham import *
 
 def pi_axis_formatter(val, pos, denomlim=10, pi=r'\pi'):
     """Formats axis ticks with fractions of pi."""
@@ -113,8 +114,9 @@ def simpson_integrate(func, args, T_spc, rule="3/8"):
     else:
         raise ValueError("Unsupported rule. Use '1/3', '3/8' or 'euler'.")
 
-    # Initialize integral result
-    I = 0.0
+    # Initialize integral result and temporary storage for function values
+    I = np.zeros_like(func(*args, T_spc[0]))  # Assuming V_time returns a numpy array
+    f = np.zeros((len(coeffs), *I.shape), dtype=np.cdouble)  # Shape matches `V_time` outputs
 
     if rule == "euler":
         # Euler's method
@@ -131,7 +133,7 @@ def simpson_integrate(func, args, T_spc, rule="3/8"):
                 else:
                     # Extrapolate T_spc by adding dt
                     t_current = T_spc[-1] + dt
-
-                I += coeff * func(*args, t_current) * factor
+                f[k] = func(*args, t_current)
+            I += sum(coeff * f_val for coeff, f_val in zip(coeffs, f)) * factor
 
     return I
