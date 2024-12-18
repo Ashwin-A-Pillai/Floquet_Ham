@@ -52,6 +52,10 @@ function parse_commandline()
             help = "Number of steps for real-time dynamics"
             arg_type = Int
             default  = TB_parms.n_steps
+        "--damp"
+            help = "Damping parameter"
+            arg_type = Float64
+            default  = TB_parms.damp
     end
 
     return parse_args(s)
@@ -75,7 +79,7 @@ function Hamiltonian(k,Q;At=0.0)::Matrix{Complex{Float64}}
 	return H
 end
 
-function Floquet_Hamiltonian(k, F_modes;  Q=0.0, omega=1.0, F=0.0)
+function Floquet_Hamiltonian(k, F_modes;  Q=0.0, omega=1.0, F=0.0, damp=0.0)
         h_size =2
         n_modes=length(F_modes)
         H_flq=zeros(Complex{Float64},n_modes,n_modes,h_size,h_size)
@@ -84,7 +88,7 @@ function Floquet_Hamiltonian(k, F_modes;  Q=0.0, omega=1.0, F=0.0)
         for i1 in 1:n_modes
           i_m=F_modes[i1]
           for ih in (1:h_size)
-            H_flq[i1,i1,ih,ih]=i_m*omega+Q*(-1.0)^ih
+            H_flq[i1,i1,ih,ih]=i_m*omega+Q*(-1.0)^ih-1im*damp
           end
         end
         
@@ -155,8 +159,9 @@ function main()
     F       =parsed_args["F"]    # Intensity
     omega   =parsed_args["omega"] # Frequency
     max_mode=parsed_args["nmax"]  # max number of modes
+    damp    =parsed_args["damp"]  # max number of modes
     if parsed_args["f"]
-        FLQ_diag(path,Q,omega,F,max_mode)
+        FLQ_diag(path,Q,omega,F,max_mode,damp)
     end
     #
     # Real-time
@@ -185,7 +190,7 @@ function TB_diag(path,Q)
 end
 
 
-function FLQ_diag(path,Q,omega,F,max_mode)
+function FLQ_diag(path,Q,omega,F,max_mode,damp)
   h_size=2    # Hamiltonian size
   #
   F_modes=range(-max_mode,max_mode,step=1)
@@ -195,20 +200,61 @@ function FLQ_diag(path,Q,omega,F,max_mode)
   @printf("Floquet Hamiltonian Q=%f  F=%f  omega=%f max_mode=%d ",Q,F,omega,max_mode)
   println("")
   #
-  flq_bands = zeros(Float64, length(path), n_modes, h_size)
-  for (i,kpt) in enumerate(path)
-  	H_flq=Floquet_Hamiltonian(kpt,F_modes;Q,omega,F)
-  	eigenvalues = eigen(H_flq).values       # Diagonalize the matrix
-        flq_bands[i, :,:] = reshape(eigenvalues,(n_modes,h_size))  # Store eigenvalues in an array
+  nkpt=length(path)
+  flq_bands    = zeros(Float64, nkpt, n_modes, h_size)
+  flq_eigenvec = zeros(Complex{Float64}, nkpt, n_modes*h_size, n_modes, h_size)
+  all_eigenvec = zeros(Complex{Float64}, nkpt, n_modes*h_size, n_modes*h_size)
+  #
+  for (ik,kpt) in enumerate(path)
+  	H_flq=Floquet_Hamiltonian(kpt,F_modes;Q,omega,F,damp)
+        diag_H_flq=eigen(H_flq)
+  	eigenvalues  = diag_H_flq.values       # Diagonalize the matrix
+        eigenvectors = diag_H_flq.vectors
+        flq_bands[ik, :,:]        = reshape(eigenvalues,(n_modes,h_size))  # Store eigenvalues in an array
+        all_eigenvec[ik, :,:] = eigenvectors
+        flq_eigenvec[ik, :,:,:] = reshape(eigenvectors,(n_modes*h_size,n_modes,h_size))  # Store eigenvalues in an array
   end
-  plot(flq_bands[:, 1,1], label="Mode 1 band 1",color="green")
-  plot(flq_bands[:, 1,2], label="Mode 1 band 2",color="green")
-  plot(flq_bands[:, 2,1], label="Mode 2 band 1",color="blue")
-  plot(flq_bands[:, 2,2], label="Mode 2 band 2",color="blue")
-  plot(flq_bands[:, 3,1], label="Mode 3 band 1",color="red")
-  plot(flq_bands[:, 3,2], label="Mode 3 band 2",color="red")
+  plot(flq_bands[:, 1,1], label="Mode 1 band 1")
+  plot(flq_bands[:, 1,2], label="Mode 1 band 2")
+  for n in 2:n_modes
+    plot(flq_bands[:, n,1], label="Mode $n band 1")
+    plot(flq_bands[:, n,2], label="Mode $n band 2")
+  end
   title("Floquet band structure for two site 1D model")
   PyPlot.show()
+  #
+  # Check orthonormality
+  #
+  for ik in 1:4
+    for mode in 1:n_modes
+    println("ik = $ik  mode = $mode ")
+    dot_prod=dot(all_eigenvec[ik,mode,:],all_eigenvec[ik,mode,:])
+    print(" eigenvec[1]*eigenvec[1] ",dot_prod,"\n")
+
+    dot_prod=dot(flq_eigenvec[ik,mode,:,1],flq_eigenvec[ik,mode,:,1])
+    print(" eigenvec[1,:,1]*eigenvec[1,:,1] ",dot_prod,"\n")
+    
+    dot_prod=dot(flq_eigenvec[ik,mode,:,2],flq_eigenvec[ik,mode,:,2])
+    print(" eigenvec[1,:,2]*eigenvec[1,:,2] ",dot_prod,"\n")
+    
+    dot_prod=dot(flq_eigenvec[ik,mode,:,1],conj(flq_eigenvec[ik,mode,:,2]))
+    print(" eigenvec[1,:,1]*eigenvec[1,:,2] ",dot_prod,"\n")
+
+    dot_prod=dot(flq_eigenvec[ik,mode,:,2],conj(flq_eigenvec[ik,mode,:,1]))
+    print(" eigenvec[1,:,2]*eigenvec[1,:,1] ",dot_prod,"\n")
+    #
+    # scalar product with the initial WF
+    psi0=zeros(Complex{Float64}, h_size)
+    wk=zeros(Complex{Float64}, h_size)
+    psi0[1]=1.0
+    wk[1]=sum(flq_eigenvec[ik,mode,:,1])
+    wk[2]=sum(flq_eigenvec[ik,mode,:,2])
+    #
+    print(" Sum of the two ",dot(flq_eigenvec[ik,mode,:,1],conj(flq_eigenvec[ik,mode,:,1]))+dot(flq_eigenvec[ik,mode,:,2],conj(flq_eigenvec[ik,mode,:,2]))," \n ")
+    #
+    end
+  end
+  #
 end
 
 function RT_dynamics(kpoints,Q,omega,F,tstep,nsteps)
