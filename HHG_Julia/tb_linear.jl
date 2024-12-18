@@ -223,37 +223,22 @@ function FLQ_diag(path,Q,omega,F,max_mode,damp)
   title("Floquet band structure for two site 1D model")
   PyPlot.show()
   #
-  # Check orthonormality
+  # 
+  # Psi_0 (it is the same for k-points) 
   #
-  for ik in 1:4
-    for mode in 1:n_modes
-    println("ik = $ik  mode = $mode ")
-    dot_prod=dot(all_eigenvec[ik,mode,:],all_eigenvec[ik,mode,:])
-    print(" eigenvec[1]*eigenvec[1] ",dot_prod,"\n")
-
-    dot_prod=dot(flq_eigenvec[ik,mode,:,1],flq_eigenvec[ik,mode,:,1])
-    print(" eigenvec[1,:,1]*eigenvec[1,:,1] ",dot_prod,"\n")
-    
-    dot_prod=dot(flq_eigenvec[ik,mode,:,2],flq_eigenvec[ik,mode,:,2])
-    print(" eigenvec[1,:,2]*eigenvec[1,:,2] ",dot_prod,"\n")
-    
-    dot_prod=dot(flq_eigenvec[ik,mode,:,1],conj(flq_eigenvec[ik,mode,:,2]))
-    print(" eigenvec[1,:,1]*eigenvec[1,:,2] ",dot_prod,"\n")
-
-    dot_prod=dot(flq_eigenvec[ik,mode,:,2],conj(flq_eigenvec[ik,mode,:,1]))
-    print(" eigenvec[1,:,2]*eigenvec[1,:,1] ",dot_prod,"\n")
-    #
-    # scalar product with the initial WF
-    psi0=zeros(Complex{Float64}, h_size)
-    wk=zeros(Complex{Float64}, h_size)
-    psi0[1]=1.0
-    wk[1]=sum(flq_eigenvec[ik,mode,:,1])
-    wk[2]=sum(flq_eigenvec[ik,mode,:,2])
-    #
-    print(" Sum of the two ",dot(flq_eigenvec[ik,mode,:,1],conj(flq_eigenvec[ik,mode,:,1]))+dot(flq_eigenvec[ik,mode,:,2],conj(flq_eigenvec[ik,mode,:,2]))," \n ")
-    #
-    end
-  end
+  psi_0 = zeros(Complex{Float64}, h_size)
+  psi_0[1]=1.0
+  psi_0[2]=0.0
+  #
+  # Build \chi^\alpha
+  #
+  xhi_alpha = zeros(Complex{Float64}, nkpts, h_size, h_size)
+  xhi_alpha[:,1,:]=sum(flq_eigenvec[:, :,:],dim=2)
+  # 
+  # Build weights
+  #
+  weights = zeros(Complex{Float64}, nkpt, h_size, h_size)
+  #
   #
 end
 
