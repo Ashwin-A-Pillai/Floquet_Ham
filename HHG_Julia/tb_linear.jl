@@ -150,7 +150,11 @@ function main()
     #
     Q=parsed_args["Q"]
     if parsed_args["t"]
-        TB_diag(path,Q)
+        band_structure,eigenvecs=TB_diag(path,Q)
+        plot(band_structure[:, 1], label="Band 1")
+        plot(band_structure[:, 2], label="Band 2")
+        title("Band structure for two site 1D model")
+        PyPlot.show()
     end
     #
     #
@@ -177,16 +181,15 @@ function TB_diag(path,Q)
   println("")
 
   band_structure = zeros(Float64, length(path), 2)
+  eigenvecs      = zeros(Float64, length(path), 2, 2)
   
   for (i,kpt) in enumerate(path)
   	H=Hamiltonian(kpt,Q)
-  	eigenvalues = eigen(H).values       # Diagonalize the matrix
-        band_structure[i, :] = eigenvalues  # Store eigenvalues in an array
+  	diag_H = eigen(H)                  # Diagonalize the matrix
+        band_structure[i, :] = data_H.values  # Store eigenvalues in an array
+        eigenvec[i,:, : ]    = data_H.vectors
   end
-  plot(band_structure[:, 1], label="Band 1")
-  plot(band_structure[:, 2], label="Band 2")
-  title("Band structure for two site 1D model")
-  PyPlot.show()
+  return band_structure,eigenvecs
 end
 
 
@@ -196,14 +199,16 @@ function FLQ_diag(path,Q,omega,F,max_mode,damp)
   F_modes=range(-max_mode,max_mode,step=1)
   n_modes=length(F_modes)
   #
+  band_structure,eigenvecs=TB_diag(path, Q)
+  #
   println("")
   @printf("Floquet Hamiltonian Q=%f  F=%f  omega=%f max_mode=%d ",Q,F,omega,max_mode)
   println("")
   #
   nkpt=length(path)
   flq_bands    = zeros(Float64, nkpt, n_modes, h_size)
-  flq_eigenvec = zeros(Complex{Float64}, nkpt, n_modes*h_size, n_modes, h_size)
-  all_eigenvec = zeros(Complex{Float64}, nkpt, n_modes,h_size, n_modes*h_size)
+  flq_eigenvec = zeros(Complex{Float64}, nkpt, n_modes, h_size, n_modes, h_size)
+  all_eigenvec = zeros(Complex{Float64}, nkpt, n_modes*h_size, n_modes*h_size)
   #
   for (ik,kpt) in enumerate(path)
   	H_flq=Floquet_Hamiltonian(kpt,F_modes;Q,omega,F,damp)
@@ -211,8 +216,8 @@ function FLQ_diag(path,Q,omega,F,max_mode,damp)
   	eigenvalues  = diag_H_flq.values       # Diagonalize the matrix
         eigenvectors = diag_H_flq.vectors
         flq_bands[ik, :,:]        = reshape(eigenvalues,(n_modes,h_size))  # Store eigenvalues in an array
-        all_eigenvec[ik, :,:] = eigenvectors
-        flq_eigenvec[ik,:,:,:,:] = reshape(eigenvectors,(n_modes,h_size,n_modes,h_size))  # Store eigenvalues in an array
+        all_eigenvec[ik, :,:]     = eigenvectors
+        flq_eigenvec[ik,:,:,:,:]  = reshape(eigenvectors,(n_modes,h_size,n_modes,h_size))  # Store eigenvalues in an array
   end
   plot(flq_bands[:, 1,1], label="Mode 1 band 1")
   plot(flq_bands[:, 1,2], label="Mode 1 band 2")
@@ -223,32 +228,34 @@ function FLQ_diag(path,Q,omega,F,max_mode,damp)
   title("Floquet band structure for two site 1D model")
   PyPlot.show()
   #
-  # 
-  # Psi_0 (it is the same for k-points) 
-  #
-  psi_0 = zeros(Complex{Float64}, h_size)
-  psi_0[1]=1.0
-  psi_0[2]=0.0
+  # Psi_0=eigenvec[ik,1,:]
   #
   # Build \chi^\alpha
   #
-  xhi_alpha = zeros(Complex{Float64}, nkpts, h_size, h_size)
+  xhi_alpha = zeros(Complex{Float64}, nkpt, h_size, h_size)
   imode=max_mode+1  # I choose the eigenvector with mode=0
-  xhi_alpha[:,1,:]=sum(flq_eigenvec[:,imode,1,:,:],dim=4)
-  xhi_alpha[:,2,:]=sum(flq_eigenvec[:,imode,2,:,:],dim=4)
+  println("Build X_alpha ..")
+  for ik in 1:nkpt
+    for n in 1:n_modes
+      xhi_alpha[ik,1,:]+=flq_eigenvec[ik,imode,1,n,:]
+      xhi_alpha[ik,2,:]+=flq_eigenvec[ik,imode,2,n,:]
+    end
+  end
   # 
   # Build weights
   #
+  println("Build weights ..")
   weights = zeros(Complex{Float64}, nkpt, h_size, h_size)
   for ik in 1:nkpt
-    weights[ik,1,:]=xhi_alpha[ik,1,:]'*psi_0[:]  # xhi^+ \dot \psi_0
-    weights[ik,2,:]=xhi_alpha[ik,2,:]'*psi_0[:]
+      weights[ik,1,:].=conj(xhi_alpha[ik,1,:]).*eigenvecs[ik,1,:]  # xhi^+ \dot \psi_0
+      weights[ik,2,:].=conj(xhi_alpha[ik,2,:]).*eigenvecs[ik,1,:]
   end
   #
   # Check normalization
   #
+  println("Check normalization ..")
   for ik in 1:nkpt
-      print("Norm $ik : ",norm(weights[ik,1,:])^2+norm(weights[ik,2,:])^2)
+     print("Norm $ik : ",norm(weights[ik,1,:])^2+norm(weights[ik,2,:])^2," \n ")
   end 
   #
   # Calculate current
@@ -257,18 +264,29 @@ function FLQ_diag(path,Q,omega,F,max_mode,damp)
   #
   I_hN=zeros(Complex{Float64},n_max)
   #
+  println("Build current coefficent ..")
   for n in 1:n_max
     for (ik,kpt) in enumerate(path)
        I_hN[n]+=Build_I_kN(kpt,n,F)*(norm(weights[ik,1,:])^2+norm(weights[ik,2,:])^2)
-    end
+     end
   end
   #
+  println("I_hN ",abs.(I_hN))
+  #
+  plot(abs.(I_hN), label="Current")
+  title("Current coefficent for the different harmonics")
+  PyPlot.show()
 end
 
 function Build_I_kN(k,n,F)
-    I_kN=(-1im)^n*bessel(n,F)*sin(k[1]+n*pi/2.0)
-    return I_kN
+   I_kN=(-1im)^n*besselj(n,F)*sin(k[1]+n*pi/2.0)
+   return I_kN
 end
+
+#function Build_I_kN_alpha(k,n,F)
+#   I_kN=(-1im)^n*besselj(n,F)*sin(k[1]+n*pi/2.0)
+#   return I_kN
+#end
 
 function RT_dynamics(kpoints,Q,omega,F,tstep,nsteps)
   h_size=2    # Hamiltonian size
