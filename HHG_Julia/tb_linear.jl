@@ -203,7 +203,7 @@ function FLQ_diag(path,Q,omega,F,max_mode,damp)
   nkpt=length(path)
   flq_bands    = zeros(Float64, nkpt, n_modes, h_size)
   flq_eigenvec = zeros(Complex{Float64}, nkpt, n_modes*h_size, n_modes, h_size)
-  all_eigenvec = zeros(Complex{Float64}, nkpt, n_modes*h_size, n_modes*h_size)
+  all_eigenvec = zeros(Complex{Float64}, nkpt, n_modes,h_size, n_modes*h_size)
   #
   for (ik,kpt) in enumerate(path)
   	H_flq=Floquet_Hamiltonian(kpt,F_modes;Q,omega,F,damp)
@@ -212,7 +212,7 @@ function FLQ_diag(path,Q,omega,F,max_mode,damp)
         eigenvectors = diag_H_flq.vectors
         flq_bands[ik, :,:]        = reshape(eigenvalues,(n_modes,h_size))  # Store eigenvalues in an array
         all_eigenvec[ik, :,:] = eigenvectors
-        flq_eigenvec[ik, :,:,:] = reshape(eigenvectors,(n_modes*h_size,n_modes,h_size))  # Store eigenvalues in an array
+        flq_eigenvec[ik,:,:,:,:] = reshape(eigenvectors,(n_modes,h_size,n_modes,h_size))  # Store eigenvalues in an array
   end
   plot(flq_bands[:, 1,1], label="Mode 1 band 1")
   plot(flq_bands[:, 1,2], label="Mode 1 band 2")
@@ -233,13 +233,41 @@ function FLQ_diag(path,Q,omega,F,max_mode,damp)
   # Build \chi^\alpha
   #
   xhi_alpha = zeros(Complex{Float64}, nkpts, h_size, h_size)
-  xhi_alpha[:,1,:]=sum(flq_eigenvec[:, :,:],dim=2)
+  imode=max_mode+1  # I choose the eigenvector with mode=0
+  xhi_alpha[:,1,:]=sum(flq_eigenvec[:,imode,1,:,:],dim=4)
+  xhi_alpha[:,2,:]=sum(flq_eigenvec[:,imode,2,:,:],dim=4)
   # 
   # Build weights
   #
   weights = zeros(Complex{Float64}, nkpt, h_size, h_size)
+  for ik in 1:nkpt
+    weights[ik,1,:]=xhi_alpha[ik,1,:]'*psi_0[:]  # xhi^+ \dot \psi_0
+    weights[ik,2,:]=xhi_alpha[ik,2,:]'*psi_0[:]
+  end
   #
+  # Check normalization
   #
+  for ik in 1:nkpt
+      print("Norm $ik : ",norm(weights[ik,1,:])^2+norm(weights[ik,2,:])^2)
+  end 
+  #
+  # Calculate current
+  #
+  n_max=10
+  #
+  I_hN=zeros(Complex{Float64},n_max)
+  #
+  for n in 1:n_max
+    for (ik,kpt) in enumerate(path)
+       I_hN[n]+=Build_I_kN(kpt,n,F)*(norm(weights[ik,1,:])^2+norm(weights[ik,2,:])^2)
+    end
+  end
+  #
+end
+
+function Build_I_kN(k,n,F)
+    I_kN=(-1im)^n*bessel(n,F)*sin(k[1]+n*pi/2.0)
+    return I_kN
 end
 
 function RT_dynamics(kpoints,Q,omega,F,tstep,nsteps)
