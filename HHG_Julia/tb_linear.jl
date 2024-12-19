@@ -181,13 +181,13 @@ function TB_diag(path,Q)
   println("")
 
   band_structure = zeros(Float64, length(path), 2)
-  eigenvecs      = zeros(Float64, length(path), 2, 2)
+  eigenvecs      = zeros(Complex{Float64}, length(path), 2, 2)
   
-  for (i,kpt) in enumerate(path)
+  for (ik,kpt) in enumerate(path)
   	H=Hamiltonian(kpt,Q)
   	diag_H = eigen(H)                  # Diagonalize the matrix
-        band_structure[i, :] = data_H.values  # Store eigenvalues in an array
-        eigenvec[i,:, : ]    = data_H.vectors
+        band_structure[ik, :] = diag_H.values  # Store eigenvalues in an array
+        eigenvecs[ik,:, : ]    = diag_H.vectors
   end
   return band_structure,eigenvecs
 end
@@ -265,28 +265,17 @@ function FLQ_diag(path,Q,omega,F,max_mode,damp)
   I_hN=zeros(Complex{Float64},n_max)
   #
   println("Build current coefficent ..")
-  for n in 1:n_max
-    for (ik,kpt) in enumerate(path)
-       I_hN[n]+=Build_I_kN(kpt,n,F)*(norm(weights[ik,1,:])^2+norm(weights[ik,2,:])^2)
-     end
-  end
-  #
-  println("I_hN ",abs.(I_hN))
-  #
-  plot(abs.(I_hN), label="Current")
-  title("Current coefficent for the different harmonics")
-  PyPlot.show()
+end
+
+function Build_I_alpha_kN(k,n,F,xhi_alpha)
+  
 end
 
 function Build_I_kN(k,n,F)
-   I_kN=(-1im)^n*besselj(n,F)*sin(k[1]+n*pi/2.0)
-   return I_kN
+  I_kN=zeros(Complex{Float64},h_size,h_size)
+  I_kN[1,2]=I_kN[2,1]=(-1im)^n*besselj(n,F)*sin(k[1]+n*pi/2.0)
+  return I_kN
 end
-
-#function Build_I_kN_alpha(k,n,F)
-#   I_kN=(-1im)^n*besselj(n,F)*sin(k[1]+n*pi/2.0)
-#   return I_kN
-#end
 
 function RT_dynamics(kpoints,Q,omega,F,tstep,nsteps)
   h_size=2    # Hamiltonian size
