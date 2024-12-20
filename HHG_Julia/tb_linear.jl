@@ -255,38 +255,49 @@ function FLQ_diag(path,Q,omega,F,max_mode,damp)
   #
   println("Check normalization ..")
   for ik in 1:nkpt
-     print("Norm $ik : ",norm(weights[ik,1,:])^2+norm(weights[ik,2,:])^2," \n ")
+      if !isapprox(norm(weights[ik,1,:])^2+norm(weights[ik,2,:])^2,1.0; atol=1e-7)
+          print("Error in normalization for ik= $ik  \n ")
+      end
   end 
   #
   # Calculate current
   #
-  n_max=n_modes
-  #
-  I_hN=zeros(Complex{Float64},n_max)
-  println("Build current coefficent ..")
-  Build_I_alpha_kN(flq_eigenvec,n_max,nkpt,F,imode)
-  for iN in 1:n_max
-    for ik in 1:nkpt, ia in 1:h_size
-       I_aKN=Build_I_alpha_kN(ik,iN,ia,flq_eigenvec,n_max,F,imode)
-       I_hN+=(weights[ik,ia,:]'weights[ik,ia,:])*I_aKN
-    end
-  end
+   n_max=n_modes
+   #
+   I_hN=zeros(Complex{Float64},n_max)
+   println("Build current coefficent ..")
+   for iN in 1:n_max
+     for (ik,kpt) in enumerate(path)
+     for ia in 1:h_size
+        I_aKN=Build_I_alpha_kN(ik,kpt,iN,ia,flq_eigenvec,n_max,F,imode)
+        print("ik  $ik  I_akN: ",abs.(I_aKN))
+        I_hN[iN]+=(weights[ik,ia,:]'weights[ik,ia,:])*I_aKN[ia]
+    
+     end
+     end
+   end
+   print("I_hN coefficents : ",abs.(I_hN))
 
 end
 
-function Build_I_alpha_kN(ik,iN,ia,flq_eigenvec,n_max,F,imode)
-     I_alpha_kN=zeros(Complex{Float64},h_size)
-     for l in 1:n_max
-        I_kl=Build_I_kN(k,l,F)
-        for n in 1:n_max
-          inp=n-l+iN
-          I_alpha_kN+=flq_eigenvec[ik,imode,ia,inp,:]*I_kl*flq_eigenvec[ik,imode,ia,in,:]
-        end
-     end
-     return I_alpha_kN
+function Build_I_alpha_kN(ik,k,iN,ia,flq_eigenvec,n_max,F,imode)
+   h_size=2
+   I_alpha_kN=zeros(Complex{Float64},h_size)
+   for l in 1:n_max
+      I_kl=Build_I_kN(k,l,F)
+      for n in 1:n_max
+         inp=n-l+iN
+         if inp <1 || inp >n_max
+             continue
+         end
+         I_alpha_kN[ia]+=flq_eigenvec[ik,imode,ia,inp,:]'*I_kl*flq_eigenvec[ik,imode,ia,iN,:]
+      end
+   end
+ return I_alpha_kN
 end
 
 function Build_I_kN(k,n,F)
+  h_size=2
   I_kN=zeros(Complex{Float64},h_size,h_size)
   I_kN[1,2]=I_kN[2,1]=(-1im)^n*besselj(n,F)*sin(k[1]+n*pi/2.0)
   return I_kN
