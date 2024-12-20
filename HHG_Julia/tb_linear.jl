@@ -260,15 +260,30 @@ function FLQ_diag(path,Q,omega,F,max_mode,damp)
   #
   # Calculate current
   #
-  n_max=10
+  n_max=n_modes
   #
   I_hN=zeros(Complex{Float64},n_max)
-  #
   println("Build current coefficent ..")
+  Build_I_alpha_kN(flq_eigenvec,n_max,nkpt,F,imode)
+  for iN in 1:n_max
+    for ik in 1:nkpt, ia in 1:h_size
+       I_aKN=Build_I_alpha_kN(ik,iN,ia,flq_eigenvec,n_max,F,imode)
+       I_hN+=(weights[ik,ia,:]'weights[ik,ia,:])*I_aKN
+    end
+  end
+
 end
 
-function Build_I_alpha_kN(k,n,F,xhi_alpha)
-  
+function Build_I_alpha_kN(ik,iN,ia,flq_eigenvec,n_max,F,imode)
+     I_alpha_kN=zeros(Complex{Float64},h_size)
+     for l in 1:n_max
+        I_kl=Build_I_kN(k,l,F)
+        for n in 1:n_max
+          inp=n-l+iN
+          I_alpha_kN+=flq_eigenvec[ik,imode,ia,inp,:]*I_kl*flq_eigenvec[ik,imode,ia,in,:]
+        end
+     end
+     return I_alpha_kN
 end
 
 function Build_I_kN(k,n,F)
