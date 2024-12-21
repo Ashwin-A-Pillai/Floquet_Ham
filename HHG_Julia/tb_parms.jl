@@ -18,4 +18,6 @@ damp=0.0
 
 #Ream-time floquet parameters
 
+write_on_disk=false
+
 end

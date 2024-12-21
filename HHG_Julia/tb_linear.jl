@@ -6,9 +6,11 @@ using Printf
 using LinearAlgebra
 using PyPlot
 using Bessels
+using DelimitedFiles
 using ArgParse
 include("tb_parms.jl")
 using .TB_parms
+
 
 
 function parse_commandline()
@@ -24,6 +26,9 @@ function parse_commandline()
         "-r"
             help = "real-time dynamics"
             action = :store_true
+        "-w"
+            help = "write on disk results"
+            action  = :store_true
         "--Q"
             help = "gap parameter"
             arg_type = Float64
@@ -121,20 +126,23 @@ function generate_circuit(points, n_steps)
 	for i in 1:n_points
 		@printf("v(%d) = %s \n",i,points[i])
 	end
-	path=Any[]
+	kpath=Any[]
 	for i in 1:(n_points-1)
 		for j in 0:(n_steps-1)	
 			dp=(points[i+1]-points[i])/n_steps
-			push!(path,points[i]+dp*j)
+			push!(kpath,points[i]+dp*j)
 		end
 	end
-	push!(path,points[n_points])
-	return path
+	push!(kpath,points[n_points])
+	return kpath
 end
 
 
 function main()
     parsed_args = parse_commandline()
+    if parsed_args["w"]
+        TB_parms.write_on_disk=true
+    end
     #
     println("\n\n * * * TB-Floquet code * * * \n\n")
     #
@@ -144,17 +152,37 @@ function main()
     zero=[0.0]
     Pi2=[+pi/(2.0)]
     kpoints=[zero,Pi2]
-    path=generate_circuit(kpoints,n_kpt)
+    kpath=generate_circuit(kpoints,n_kpt)
+    #
+    # Build distanced between k-points
+    #
+    kdist=zeros(Float64,length(kpath))
+    kpt1=kpath[1]
+    for (ik,kpt) in enumerate(kpath)
+        dk=kpt-kpt1
+        kdist[ik]=sum(abs2,dk)
+        if ik>1
+            kdist[ik]+=kdist[ik-1]
+        end
+        kpt1=kpt
+    end
     #    
     #tb-parameters
     #
     Q=parsed_args["Q"]
     if parsed_args["t"]
-        band_structure,eigenvecs=TB_diag(path,Q)
-        plot(band_structure[:, 1], label="Band 1")
-        plot(band_structure[:, 2], label="Band 2")
+        band_structure,eigenvecs=TB_diag(kpath,Q)
+        plot(kdist,band_structure[:, 1], label="Band 1")
+        plot(kdist,band_structure[:, 2], label="Band 2")
         title("Band structure for two site 1D model")
         PyPlot.show()
+        if(TB_parms.write_on_disk)
+          tb_out=open("TB_Hamiltonian.txt", "w")
+          write(tb_out,"# Q = $Q \n #\n")
+          write(tb_out,"# kpt   E[1]    E[2] \n ")
+          writedlm(tb_out, [kdist band_structure[:,1] band_structure[:,2]],"     ")
+          close(tb_out)
+        end
     end
     #
     #
@@ -165,7 +193,7 @@ function main()
     max_mode=parsed_args["nmax"]  # max number of modes
     damp    =parsed_args["damp"]  # max number of modes
     if parsed_args["f"]
-        FLQ_diag(path,Q,omega,F,max_mode,damp)
+        FLQ_diag(kpath,Q,omega,F,max_mode,damp)
     end
     #
     # Real-time
@@ -175,15 +203,15 @@ function main()
     end
 end
 
-function TB_diag(path,Q)
+function TB_diag(kpath,Q)
   println("")
   println(" * * * Tight-binding code for 1D-system  * * *")
   println("")
 
-  band_structure = zeros(Float64, length(path), 2)
-  eigenvecs      = zeros(Complex{Float64}, length(path), 2, 2)
+  band_structure = zeros(Float64, length(kpath), 2)
+  eigenvecs      = zeros(Complex{Float64}, length(kpath), 2, 2)
   
-  for (ik,kpt) in enumerate(path)
+  for (ik,kpt) in enumerate(kpath)
   	H=Hamiltonian(kpt,Q)
   	diag_H = eigen(H)                  # Diagonalize the matrix
         band_structure[ik, :] = diag_H.values  # Store eigenvalues in an array
@@ -193,24 +221,24 @@ function TB_diag(path,Q)
 end
 
 
-function FLQ_diag(path,Q,omega,F,max_mode,damp)
+function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
   h_size=2    # Hamiltonian size
   #
   F_modes=range(-max_mode,max_mode,step=1)
   n_modes=length(F_modes)
   #
-  band_structure,eigenvecs=TB_diag(path, Q)
+  band_structure,eigenvecs=TB_diag(kpath, Q)
   #
   println("")
   @printf("Floquet Hamiltonian Q=%f  F=%f  omega=%f max_mode=%d ",Q,F,omega,max_mode)
   println("")
   #
-  nkpt=length(path)
+  nkpt=length(kpath)
   flq_bands    = zeros(Float64, nkpt, n_modes, h_size)
   flq_eigenvec = zeros(Complex{Float64}, nkpt, n_modes, h_size, n_modes, h_size)
   all_eigenvec = zeros(Complex{Float64}, nkpt, n_modes*h_size, n_modes*h_size)
   #
-  for (ik,kpt) in enumerate(path)
+  for (ik,kpt) in enumerate(kpath)
   	H_flq=Floquet_Hamiltonian(kpt,F_modes;Q,omega,F,damp)
         diag_H_flq=eigen(H_flq)
   	eigenvalues  = diag_H_flq.values       # Diagonalize the matrix
@@ -267,7 +295,7 @@ function FLQ_diag(path,Q,omega,F,max_mode,damp)
    I_hN=zeros(Complex{Float64},n_max)
    println("Build current coefficent ..")
    for iN in 1:n_max
-     for (ik,kpt) in enumerate(path)
+     for (ik,kpt) in enumerate(kpath)
      for ia in 1:h_size
         I_aKN=Build_I_alpha_kN(ik,kpt,iN,ia,flq_eigenvec,n_max,F,imode)
         print("ik  $ik  I_akN: ",abs.(I_aKN))
