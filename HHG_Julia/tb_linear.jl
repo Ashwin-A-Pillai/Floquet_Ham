@@ -160,7 +160,7 @@ function main()
     kpt1=kpath[1]
     for (ik,kpt) in enumerate(kpath)
         dk=kpt-kpt1
-        kdist[ik]=sum(abs2,dk)
+        kdist[ik]=sum(abs,dk)
         if ik>1
             kdist[ik]+=kdist[ik-1]
         end
