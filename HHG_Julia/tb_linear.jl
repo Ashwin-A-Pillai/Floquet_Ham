@@ -156,7 +156,8 @@ function main()
     #
     # Build distanced between k-points
     #
-    kdist=zeros(Float64,length(kpath))
+    nkpt=length(kpath)
+    kdist=zeros(Float64,nkpt)
     kpt1=kpath[1]
     for (ik,kpt) in enumerate(kpath)
         dk=kpt-kpt1
@@ -192,8 +193,40 @@ function main()
     omega   =parsed_args["omega"] # Frequency
     max_mode=parsed_args["nmax"]  # max number of modes
     damp    =parsed_args["damp"]  # max number of modes
+    n_modes =max_mode*2+1
     if parsed_args["f"]
-        FLQ_diag(kpath,Q,omega,F,max_mode,damp)
+        flq_bands,flq_eigenvecs,F_modes=FLQ_diag(kpath,Q,omega,F,max_mode,damp)
+        plot(kdist,flq_bands[:, 1,1], label="Mode 1 band 1")
+        plot(kdist,flq_bands[:, 1,2], label="Mode 1 band 2")
+        for n in 2:n_modes
+          plot(kdist,flq_bands[:, n,1], label="Mode $n band 1")
+          plot(kdist,flq_bands[:, n,2], label="Mode $n band 2")
+        end
+        title("Floquet band structure for two site 1D model")
+        PyPlot.show()
+        if(TB_parms.write_on_disk)
+          for n in 1:n_modes
+              imod=F_modes[n]
+              flq_out=open("FLQ_Hamiltonian_mode_$imod.txt", "w")
+              write(flq_out,"# Q = $Q \n#\n")
+              write(flq_out,"# Mode = $imod \n#\n")
+              write(flq_out,"# kpt   E[1]    E[2]\n")
+              writedlm(flq_out, [kdist flq_bands[:,n,1] flq_bands[:,n,2]],"     ")
+             close(flq_out)
+           end
+        end
+        #
+        # Calculate xhi_alpha 
+        xhi_alpha=Build_xhi_alpha(nkpt,n_modes,flq_eigenvecs)
+        #
+        # Generate initial wave-function psi_0 = eigenvec[1,:]
+        #
+        band_structure,eigenvecs=TB_diag(kpath, Q)
+        psi_0=eigenvecs[:,1,:]
+        #
+        # Calculate weights in the Floquet basis and check normalizations
+        weights  =Build_weights(nkpt,psi_0,xhi_alpha)
+        #
     end
     #
     # Real-time
@@ -227,8 +260,6 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
   F_modes=range(-max_mode,max_mode,step=1)
   n_modes=length(F_modes)
   #
-  band_structure,eigenvecs=TB_diag(kpath, Q)
-  #
   println("")
   @printf("Floquet Hamiltonian Q=%f  F=%f  omega=%f max_mode=%d ",Q,F,omega,max_mode)
   println("")
@@ -247,36 +278,31 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
         all_eigenvec[ik, :,:]     = eigenvectors
         flq_eigenvec[ik,:,:,:,:]  = reshape(eigenvectors,(n_modes,h_size,n_modes,h_size))  # Store eigenvalues in an array
   end
-  plot(flq_bands[:, 1,1], label="Mode 1 band 1")
-  plot(flq_bands[:, 1,2], label="Mode 1 band 2")
-  for n in 2:n_modes
-    plot(flq_bands[:, n,1], label="Mode $n band 1")
-    plot(flq_bands[:, n,2], label="Mode $n band 2")
-  end
-  title("Floquet band structure for two site 1D model")
-  PyPlot.show()
+  return flq_bands,flq_eigenvec,F_modes
+ end
   #
-  # Psi_0=eigenvec[ik,1,:]
-  #
-  # Build \chi^\alpha
-  #
+function Build_xhi_alpha(nkpt,n_modes,flq_eigenvecs)
+  h_size=2
   xhi_alpha = zeros(Complex{Float64}, nkpt, h_size, h_size)
-  imode=max_mode+1  # I choose the eigenvector with mode=0
+  imode=Int(round((n_modes-1)/2+1))  # I choose the eigenvector with mode=0
   println("Build X_alpha ..")
   for ik in 1:nkpt
     for n in 1:n_modes
-      xhi_alpha[ik,1,:]+=flq_eigenvec[ik,imode,1,n,:]
-      xhi_alpha[ik,2,:]+=flq_eigenvec[ik,imode,2,n,:]
+      xhi_alpha[ik,1,:]+=flq_eigenvecs[ik,imode,1,n,:]
+      xhi_alpha[ik,2,:]+=flq_eigenvecs[ik,imode,2,n,:]
     end
   end
-  # 
-  # Build weights
+  return xhi_alpha
+ end
+
+ function Build_weights(nkpt,psi_0,xhi_alpha)
   #
+  h_size=2
   println("Build weights ..")
   weights = zeros(Complex{Float64}, nkpt, h_size, h_size)
   for ik in 1:nkpt
-      weights[ik,1,:].=conj(xhi_alpha[ik,1,:]).*eigenvecs[ik,1,:]  # xhi^+ \dot \psi_0
-      weights[ik,2,:].=conj(xhi_alpha[ik,2,:]).*eigenvecs[ik,1,:]
+      weights[ik,1,:].=conj(xhi_alpha[ik,1,:]).*psi_0[ik,:]  # xhi^+ \dot \psi_0
+      weights[ik,2,:].=conj(xhi_alpha[ik,2,:]).*psi_0[ik,:]
   end
   #
   # Check normalization
@@ -287,7 +313,10 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
           print("Error in normalization for ik= $ik  \n ")
       end
   end 
+  return weights
+ end
   #
+  function calculate_current()
   # Calculate current
   #
    n_max=n_modes
