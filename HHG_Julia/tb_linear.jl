@@ -299,6 +299,7 @@ function Build_xhi_alpha(nkpt,n_modes,flq_eigenvecs)
       dot12=dot(flq_eigenvecs[ik,1,3,:],flq_eigenvecs[ik,2,4,:])
       print(" Dot $dot11  and    $dot12   \n")
   end
+  imod=round(Int,(n_modes-1)/2+1)
   for ik in 1:nkpt
     for n in 1:n_modes
       xhi_alpha[ik,1,:]+=flq_eigenvecs[ik,1,n,:]
