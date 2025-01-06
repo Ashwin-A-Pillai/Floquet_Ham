@@ -271,7 +271,7 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
   #
   nkpt=length(kpath)
   flq_bands    = zeros(Float64, nkpt, h_size, n_modes)
-  flq_eigenvec = zeros(Complex{Float64}, nkpt, n_modes, h_size, n_modes*h_size)
+  flq_eigenvec = zeros(Complex{Float64}, nkpt, h_size, n_modes,n_modes*h_size)
   all_eigenvec = zeros(Complex{Float64}, nkpt, n_modes*h_size, n_modes*h_size)
   #
   for (ik,kpt) in enumerate(kpath)
@@ -281,7 +281,7 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
         eigenvectors = diag_H_flq.vectors
         flq_bands[ik, :,:]        = reshape(eigenvalues,(h_size, n_modes))  # Store eigenvalues in an array
         all_eigenvec[ik, :,:]     = eigenvectors
-        flq_eigenvec[ik,:,:,:]  = reshape(eigenvectors,(n_modes,h_size,n_modes*h_size))  # Store eigenvalues in an array
+        flq_eigenvec[ik,:,:,:]  = reshape(eigenvectors,(h_size, n_modes,n_modes*h_size))  # Store eigenvalues in an array
   end
   return flq_bands,flq_eigenvec,F_modes
  end
@@ -296,13 +296,13 @@ function Build_xhi_alpha(nkpt,n_modes,flq_eigenvecs)
   M=zeros(Complex{Float64},h_size,h_size)
   for ik in 1:nkpt
       dot11=dot(flq_eigenvecs[ik,1,1,:],flq_eigenvecs[ik,1,1,:])
-      dot12=dot(flq_eigenvecs[ik,3,1,:],flq_eigenvecs[ik,4,2,:])
+      dot12=dot(flq_eigenvecs[ik,1,3,:],flq_eigenvecs[ik,2,4,:])
       print(" Dot $dot11  and    $dot12   \n")
   end
   for ik in 1:nkpt
     for n in 1:n_modes
-      xhi_alpha[ik,1,:]+=flq_eigenvecs[ik,n,1,:]
-      xhi_alpha[ik,2,:]+=flq_eigenvecs[ik,n,2,:]
+      xhi_alpha[ik,1,:]+=flq_eigenvecs[ik,1,n,:]
+      xhi_alpha[ik,2,:]+=flq_eigenvecs[ik,2,n,:]
     end
   end
   #
