@@ -194,14 +194,15 @@ function main()
     max_mode=parsed_args["nmax"]  # max number of modes
     damp    =parsed_args["damp"]  # max number of modes
     n_modes =max_mode*2+1
+    imod=round(Int,(n_modes-1)/2+1)
     if parsed_args["f"]
         flq_bands,flq_eigenvecs,F_modes=FLQ_diag(kpath,Q,omega,F,max_mode,damp)
-        plot(kdist,flq_bands[:, 1,1], label="Mode 1 band 1")
-        plot(kdist,flq_bands[:, 1,2], label="Mode 1 band 2")
-        for n in 2:n_modes
-          plot(kdist,flq_bands[:, n,1], label="Mode $n band 1")
-          plot(kdist,flq_bands[:, n,2], label="Mode $n band 2")
-        end
+        plot(kdist,flq_bands[:, 1, imod], label="Mode 1 band 1")
+        plot(kdist,flq_bands[:, 2, imod], label="Mode 1 band 2")
+#        for n in 1:n_modes
+#          plot(kdist,flq_bands[:, n,1], label="Mode $n band 1")
+#          plot(kdist,flq_bands[:, n,2], label="Mode $n band 2")
+#        end
         title("Floquet band structure for two site 1D model")
         PyPlot.show()
         if(TB_parms.write_on_disk)
@@ -269,7 +270,7 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
   println("")
   #
   nkpt=length(kpath)
-  flq_bands    = zeros(Float64, nkpt, n_modes, h_size)
+  flq_bands    = zeros(Float64, nkpt, h_size, n_modes)
   flq_eigenvec = zeros(Complex{Float64}, nkpt, n_modes, h_size, n_modes*h_size)
   all_eigenvec = zeros(Complex{Float64}, nkpt, n_modes*h_size, n_modes*h_size)
   #
@@ -278,7 +279,7 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
         diag_H_flq=eigen(H_flq)
   	eigenvalues  = diag_H_flq.values       # Diagonalize the matrix
         eigenvectors = diag_H_flq.vectors
-        flq_bands[ik, :,:]        = reshape(eigenvalues,(n_modes,h_size))  # Store eigenvalues in an array
+        flq_bands[ik, :,:]        = reshape(eigenvalues,(h_size, n_modes))  # Store eigenvalues in an array
         all_eigenvec[ik, :,:]     = eigenvectors
         flq_eigenvec[ik,:,:,:]  = reshape(eigenvectors,(n_modes,h_size,n_modes*h_size))  # Store eigenvalues in an array
   end
