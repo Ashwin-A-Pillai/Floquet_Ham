@@ -208,9 +208,7 @@ function main()
           for n in 1:n_modes
               imod=F_modes[n]
               flq_out=open("FLQ_Hamiltonian_mode_$imod.txt", "w")
-              write(flq_out,"# Q = $Q \n")
-              write(flq_out,"# F = $F \n")
-              write(flq_out,"# omega = $omega \n")
+              write(flq_out,"# Q = $Q \n#\n")
               write(flq_out,"# Mode = $imod \n#\n")
               write(flq_out,"# kpt   E[1]    E[2]\n")
               writedlm(flq_out, [kdist flq_bands[:,n,1] flq_bands[:,n,2]],"     ")
@@ -218,8 +216,8 @@ function main()
            end
         end
         #
-        # Calculate Xhi_alpha 
-        Xhi_alpha=Build_Xhi_alpha(nkpt,n_modes,flq_eigenvecs)
+        # Calculate xhi_alpha 
+        xhi_alpha=Build_xhi_alpha(nkpt,n_modes,flq_eigenvecs)
         #
         # Generate initial wave-function psi_0 = eigenvec[1,:]
         #
@@ -227,20 +225,7 @@ function main()
         psi_0=eigenvecs[:,1,:]
         #
         # Calculate weights in the Floquet basis and check normalizations
-        #
-        weights  =Build_weights(nkpt,psi_0,Xhi_alpha)
-        if(TB_parms.write_on_disk) 
-          w_out=open("weights.txt", "w")
-          write(w_out,"# Q = $Q \n")
-          write(w_out,"# F = $F \n")
-          write(w_out,"# omega = $omega \n")
-          imod=Int(round((n_modes-1)/2+1))  # I choose the eigenvector with mode=0
-          write(w_out,"# Mode = $imod \n#\n")
-          write(w_out,"# kpt   E[1]    E[2]\n")
-          w_diff=abs.(weights[:,2].^2)-abs.(weights[:,1].^2)
-          writedlm(w_out, [kdist w_diff],"     ")
-          close(w_out)
-        end
+        weights  =Build_weights(nkpt,psi_0,xhi_alpha)
         #
     end
     #
@@ -296,40 +281,35 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
   return flq_bands,flq_eigenvec,F_modes
  end
   #
-function Build_Xhi_alpha(nkpt,n_modes,flq_eigenvecs)
-  #
-  # In this function I build the Xhi_alpha
-  # Xhi_alpha = sum_n xhi^\alpha_n 
-  # where xhi^\alpha_n are the eigenvectors of Eq. 14, see also Eq. 15
-  #
+function Build_xhi_alpha(nkpt,n_modes,flq_eigenvecs)
   h_size=2
-  Xhi_alpha = zeros(Complex{Float64}, nkpt, h_size, h_size)
+  xhi_alpha = zeros(Complex{Float64}, nkpt, h_size, h_size)
   imode=Int(round((n_modes-1)/2+1))  # I choose the eigenvector with mode=0
   println("Build X_alpha ..")
   for ik in 1:nkpt
     for n in 1:n_modes
-      Xhi_alpha[ik,1,:]+=flq_eigenvecs[ik,imode,1,n,:]
-      Xhi_alpha[ik,2,:]+=flq_eigenvecs[ik,imode,2,n,:]
+      xhi_alpha[ik,1,:]+=flq_eigenvecs[ik,imode,1,n,:]
+      xhi_alpha[ik,2,:]+=flq_eigenvecs[ik,imode,2,n,:]
     end
   end
-  return Xhi_alpha
+  return xhi_alpha
  end
 
  function Build_weights(nkpt,psi_0,xhi_alpha)
   #
   h_size=2
   println("Build weights ..")
-  weights = zeros(Complex{Float64}, nkpt, h_size)
+  weights = zeros(Complex{Float64}, nkpt, h_size, h_size)
   for ik in 1:nkpt
-      weights[ik,1]=dot(xhi_alpha[ik,1,:],psi_0[ik,:])  # xhi^+ \dot \psi_0
-      weights[ik,2]=dot(xhi_alpha[ik,2,:],psi_0[ik,:])
+      weights[ik,1,:].=conj(xhi_alpha[ik,1,:]).*psi_0[ik,:]  # xhi^+ \dot \psi_0
+      weights[ik,2,:].=conj(xhi_alpha[ik,2,:]).*psi_0[ik,:]
   end
   #
   # Check normalization
   #
   println("Check normalization ..")
   for ik in 1:nkpt
-      if !isapprox(norm(weights[ik,:]),1.0; atol=1e-7)
+      if !isapprox(norm(weights[ik,1,:])^2+norm(weights[ik,2,:])^2,1.0; atol=1e-7)
           print("Error in normalization for ik= $ik  \n ")
       end
   end 
