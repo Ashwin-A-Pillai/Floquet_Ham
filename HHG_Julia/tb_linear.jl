@@ -225,7 +225,11 @@ function main()
         psi_0=eigenvecs[:,1,:]
         #
         # Calculate weights in the Floquet basis and check normalizations
-        weights  =Build_weights(nkpt,psi_0,xhi_alpha)
+        weights  =Build_weights(nkpt,psi_0,xhi_alpha,n_modes)
+        weights_diff=abs.(weights[:,2].^2)-abs.(weights[:,1].^2)
+        plot(kdist, weights_diff, label="Weights_diff")
+        title("Weights diff")
+        PyPlot.show()
         #
     end
     #
@@ -266,7 +270,7 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
   #
   nkpt=length(kpath)
   flq_bands    = zeros(Float64, nkpt, n_modes, h_size)
-  flq_eigenvec = zeros(Complex{Float64}, nkpt, n_modes, h_size, n_modes, h_size)
+  flq_eigenvec = zeros(Complex{Float64}, nkpt, n_modes, h_size, n_modes*h_size)
   all_eigenvec = zeros(Complex{Float64}, nkpt, n_modes*h_size, n_modes*h_size)
   #
   for (ik,kpt) in enumerate(kpath)
@@ -276,40 +280,64 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
         eigenvectors = diag_H_flq.vectors
         flq_bands[ik, :,:]        = reshape(eigenvalues,(n_modes,h_size))  # Store eigenvalues in an array
         all_eigenvec[ik, :,:]     = eigenvectors
-        flq_eigenvec[ik,:,:,:,:]  = reshape(eigenvectors,(n_modes,h_size,n_modes,h_size))  # Store eigenvalues in an array
+        flq_eigenvec[ik,:,:,:]  = reshape(eigenvectors,(n_modes,h_size,n_modes*h_size))  # Store eigenvalues in an array
   end
   return flq_bands,flq_eigenvec,F_modes
  end
   #
 function Build_xhi_alpha(nkpt,n_modes,flq_eigenvecs)
   h_size=2
-  xhi_alpha = zeros(Complex{Float64}, nkpt, h_size, h_size)
-  imode=Int(round((n_modes-1)/2+1))  # I choose the eigenvector with mode=0
+  xhi_alpha = zeros(Complex{Float64}, nkpt, h_size, h_size*n_modes)
   println("Build X_alpha ..")
+    # Check ortormality
+  #
+  println("Check normalization xhi_alpha ..")
+  M=zeros(Complex{Float64},h_size,h_size)
+  for ik in 1:nkpt
+      dot11=dot(flq_eigenvecs[ik,1,1,:],flq_eigenvecs[ik,1,1,:])
+      dot12=dot(flq_eigenvecs[ik,3,1,:],flq_eigenvecs[ik,4,2,:])
+      print(" Dot $dot11  and    $dot12   \n")
+  end
   for ik in 1:nkpt
     for n in 1:n_modes
-      xhi_alpha[ik,1,:]+=flq_eigenvecs[ik,imode,1,n,:]
-      xhi_alpha[ik,2,:]+=flq_eigenvecs[ik,imode,2,n,:]
+      xhi_alpha[ik,1,:]+=flq_eigenvecs[ik,n,1,:]
+      xhi_alpha[ik,2,:]+=flq_eigenvecs[ik,n,2,:]
     end
   end
+  #
+  # Renormalization Xhi_alpha
+  #
+#  xhi_alpha.=xhi_alpha/sqrt(n_modes)
+  #
+  # Check ortormality
+  #
+  println("Check normalization xhi_alpha ..")
+  M=zeros(Complex{Float64},h_size,h_size)
+  for ik in 1:nkpt
+    dot11=dot(xhi_alpha[ik,1,:],xhi_alpha[ik,1,:])
+    dot12=dot(xhi_alpha[ik,1,:],xhi_alpha[ik,2,:])
+     print(" Dot $dot11  and    $dot12   \n")
+  end 
+  #
   return xhi_alpha
  end
 
- function Build_weights(nkpt,psi_0,xhi_alpha)
+ function Build_weights(nkpt,psi_0,xhi_alpha,n_modes)
   #
   h_size=2
   println("Build weights ..")
-  weights = zeros(Complex{Float64}, nkpt, h_size, h_size)
+  weights = zeros(Complex{Float64}, nkpt, h_size*n_modes)
   for ik in 1:nkpt
-      weights[ik,1,:].=conj(xhi_alpha[ik,1,:]).*psi_0[ik,:]  # xhi^+ \dot \psi_0
-      weights[ik,2,:].=conj(xhi_alpha[ik,2,:]).*psi_0[ik,:]
+    for n in 1:(h_size*n_modes)
+      weights[ik,n]=dot(xhi_alpha[ik,:,n],psi_0[ik,:])  # xhi^+ \dot \psi_0
+    end
   end
   #
   # Check normalization
   #
   println("Check normalization ..")
   for ik in 1:nkpt
-      if !isapprox(norm(weights[ik,1,:])^2+norm(weights[ik,2,:])^2,1.0; atol=1e-7)
+      if !isapprox(norm(weights[ik,:]),1.0; atol=1e-7)
           print("Error in normalization for ik= $ik  \n ")
       end
   end 
