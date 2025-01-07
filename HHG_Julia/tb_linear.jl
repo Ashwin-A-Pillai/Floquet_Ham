@@ -11,6 +11,10 @@ using ArgParse
 include("tb_parms.jl")
 using .TB_parms
 
+# Define Pauli matrices
+σ₀ = I(2)  # Identity matrix
+σ₁ = [0 1; 1 0]
+σ₃ = [1 0; 0 -1]
 
 
 function parse_commandline()
@@ -74,13 +78,10 @@ function Hamiltonian(k,Q;At=0.0)::Matrix{Complex{Float64}}
         #
         # Diagonal part 0,E_gap
         #
-	H[1,1]=-Q
-	H[2,2]=Q
-        #
+	H=Q*σ₃ 
         # Off diagonal part
         #
-        H[1,2]=cos(k[1]+At)
-	H[2,1]=conj(H[1,2])
+        H+=σ₁*cos(k[1]+At)
 	return H
 end
 
@@ -92,9 +93,7 @@ function Floquet_Hamiltonian(k, F_modes;  Q=0.0, omega=1.0, F=0.0, damp=0.0)
 #Diagonal terms respect to the mode and Q
         for i1 in 1:n_modes
           i_m=F_modes[i1]
-          for ih in (1:h_size)
-            H_flq[i1,i1,ih,ih]=i_m*omega+Q*(-1.0)^ih-1im*damp
-          end
+          H_flq[i1,i1,:,:]=i_m*omega*σ₀+Q*σ₃-1im*damp*σ₀
         end
         
 #Off-diagonal terms in mode 
@@ -102,8 +101,7 @@ function Floquet_Hamiltonian(k, F_modes;  Q=0.0, omega=1.0, F=0.0, damp=0.0)
           i_m=F_modes[i1]
           for i2 in i1:n_modes
              i_n=F_modes[i2]
-             H_flq[i1,i2,1,2]=(1.0im)^(i_m-i_n)*besselj(i_m-i_n,F)*cos(k[1]-(i_m-i_n)*pi/2.0)
-             H_flq[i1,i2,2,1]=H_flq[i1,i2,1,2]
+             H_flq[i1,i2,:,:]+=(1.0im)^(i_m-i_n)*besselj(i_m-i_n,F)*cos(k[1]-(i_m-i_n)*pi/2.0)*σ₁ 
              if i1 != i2
                  H_flq[i2,i1,:,:]=conj(H_flq[i1,i2,:,:])
              end
@@ -271,7 +269,7 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
   #
   nkpt=length(kpath)
   flq_bands    = zeros(Float64, nkpt, h_size, n_modes)
-  flq_eigenvec = zeros(Complex{Float64}, nkpt, h_size, n_modes,n_modes*h_size)
+  flq_eigenvec = zeros(Complex{Float64}, nkpt, h_size*n_modes, h_size, n_modes)
   all_eigenvec = zeros(Complex{Float64}, nkpt, n_modes*h_size, n_modes*h_size)
   #
   for (ik,kpt) in enumerate(kpath)
@@ -281,29 +279,29 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
         eigenvectors = diag_H_flq.vectors
         flq_bands[ik, :,:]        = reshape(eigenvalues,(h_size, n_modes))  # Store eigenvalues in an array
         all_eigenvec[ik, :,:]     = eigenvectors
-        flq_eigenvec[ik,:,:,:]  = reshape(eigenvectors,(h_size, n_modes,n_modes*h_size))  # Store eigenvalues in an array
+        flq_eigenvec[ik,:,:,:]  = reshape(eigenvectors,(h_size*n_modes, h_size, n_modes))  # Store eigenvalues in an array
   end
   return flq_bands,flq_eigenvec,F_modes
  end
   #
 function Build_xhi_alpha(nkpt,n_modes,flq_eigenvecs)
   h_size=2
-  xhi_alpha = zeros(Complex{Float64}, nkpt, h_size, h_size*n_modes)
+  xhi_alpha = zeros(Complex{Float64}, nkpt, n_modes*h_size, h_size)
   println("Build X_alpha ..")
     # Check ortormality
   #
   println("Check normalization xhi_alpha ..")
   M=zeros(Complex{Float64},h_size,h_size)
   for ik in 1:nkpt
-      dot11=dot(flq_eigenvecs[ik,1,1,:],flq_eigenvecs[ik,1,1,:])
-      dot12=dot(flq_eigenvecs[ik,1,3,:],flq_eigenvecs[ik,2,4,:])
+      dot11=dot(flq_eigenvecs[ik,1,:,:],flq_eigenvecs[ik,1,:,:])
+      dot12=dot(flq_eigenvecs[ik,3,:,:],flq_eigenvecs[ik,2,:,:])
       print(" Dot $dot11  and    $dot12   \n")
   end
   imod=round(Int,(n_modes-1)/2+1)
   for ik in 1:nkpt
     for n in 1:n_modes
-      xhi_alpha[ik,1,:]+=flq_eigenvecs[ik,1,n,:]
-      xhi_alpha[ik,2,:]+=flq_eigenvecs[ik,2,n,:]
+      xhi_alpha[ik,:,1]+=flq_eigenvecs[ik,:,1,n]
+      xhi_alpha[ik,:,2]+=flq_eigenvecs[ik,:,2,n]
     end
   end
   #
@@ -314,13 +312,13 @@ function Build_xhi_alpha(nkpt,n_modes,flq_eigenvecs)
   # Check ortormality
   #
   println("Check normalization xhi_alpha ..")
-  M=zeros(Complex{Float64},h_size,h_size)
   for ik in 1:nkpt
-    dot11=dot(xhi_alpha[ik,1,:],xhi_alpha[ik,1,:])
-    dot12=dot(xhi_alpha[ik,1,:],xhi_alpha[ik,2,:])
+    dot11=dot(xhi_alpha[ik,:,1],xhi_alpha[ik,:,1])
+    dot12=dot(xhi_alpha[ik,:,2],xhi_alpha[ik,:,1])
      print(" Dot $dot11  and    $dot12   \n")
   end 
   #
+  exit(0)
   return xhi_alpha
  end
 
