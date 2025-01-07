@@ -269,7 +269,7 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
   #
   nkpt=length(kpath)
   flq_bands    = zeros(Float64, nkpt, h_size, n_modes)
-  flq_eigenvec = zeros(Complex{Float64}, nkpt, h_size*n_modes, h_size, n_modes)
+  flq_eigenvec = zeros(Complex{Float64}, nkpt, h_size*n_modes, h_size*n_modes)
   all_eigenvec = zeros(Complex{Float64}, nkpt, n_modes*h_size, n_modes*h_size)
   #
   for (ik,kpt) in enumerate(kpath)
@@ -279,29 +279,31 @@ function FLQ_diag(kpath,Q,omega,F,max_mode,damp)
         eigenvectors = diag_H_flq.vectors
         flq_bands[ik, :,:]        = reshape(eigenvalues,(h_size, n_modes))  # Store eigenvalues in an array
         all_eigenvec[ik, :,:]     = eigenvectors
-        flq_eigenvec[ik,:,:,:]  = reshape(eigenvectors,(h_size*n_modes, h_size, n_modes))  # Store eigenvalues in an array
+        flq_eigenvec[ik,:,:]    = transpose(eigenvectors) #reshape(eigenvectors,(h_size*n_modes, h_size, n_modes))  # Store eigenvalues in an array
   end
   return flq_bands,flq_eigenvec,F_modes
  end
   #
 function Build_xhi_alpha(nkpt,n_modes,flq_eigenvecs)
   h_size=2
-  xhi_alpha = zeros(Complex{Float64}, nkpt, n_modes*h_size, h_size)
+  xhi_alpha = zeros(Complex{Float64}, nkpt, h_size, h_size)
   println("Build X_alpha ..")
     # Check ortormality
   #
   println("Check normalization xhi_alpha ..")
   M=zeros(Complex{Float64},h_size,h_size)
   for ik in 1:nkpt
-      dot11=dot(flq_eigenvecs[ik,1,:,:],flq_eigenvecs[ik,1,:,:])
-      dot12=dot(flq_eigenvecs[ik,3,:,:],flq_eigenvecs[ik,2,:,:])
+      dot11=dot(flq_eigenvecs[ik,1,:],flq_eigenvecs[ik,1,:])
+      dot12=dot(flq_eigenvecs[ik,3,:],flq_eigenvecs[ik,2,:])
       print(" Dot $dot11  and    $dot12   \n")
   end
   imod=round(Int,(n_modes-1)/2+1)
   for ik in 1:nkpt
     for n in 1:n_modes
-      xhi_alpha[ik,:,1]+=flq_eigenvecs[ik,:,1,n]
-      xhi_alpha[ik,:,2]+=flq_eigenvecs[ik,:,2,n]
+      xhi_alpha[ik,1,1]+=flq_eigenvecs[ik,imod,(2*n-1)]
+      xhi_alpha[ik,1,2]+=flq_eigenvecs[ik,imod,(2*n)]
+      xhi_alpha[ik,2,1]+=flq_eigenvecs[ik,imod+1,(2*n-1)]
+      xhi_alpha[ik,2,2]+=flq_eigenvecs[ik,imod+1,(2*n)]
     end
   end
   #
@@ -313,8 +315,8 @@ function Build_xhi_alpha(nkpt,n_modes,flq_eigenvecs)
   #
   println("Check normalization xhi_alpha ..")
   for ik in 1:nkpt
-    dot11=dot(xhi_alpha[ik,:,1],xhi_alpha[ik,:,1])
-    dot12=dot(xhi_alpha[ik,:,2],xhi_alpha[ik,:,1])
+    dot11=dot(xhi_alpha[ik,1,:],xhi_alpha[ik,1,:])
+    dot12=dot(xhi_alpha[ik,1,:],xhi_alpha[ik,1,:])
      print(" Dot $dot11  and    $dot12   \n")
   end 
   #
