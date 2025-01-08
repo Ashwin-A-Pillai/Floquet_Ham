@@ -4,9 +4,9 @@ using PyPlot
 
 
 # Constants (assuming these are defined elsewhere)
-Nm = 5  # Example value, replace with actual value
+Nm = 15  # Example value, replace with actual value
 Q = 0.1  # Example value, replace with actual value
-W = 1.0  # Example value, replace with actual value
+W = 0.25  # Example value, replace with actual value
 F = 0.5  # Example value, replace with actual value
 Nk = 100 # Example value, replace with actual value
 
@@ -16,16 +16,20 @@ Nk = 100 # Example value, replace with actual value
 σ3 = [1 0; 0 -1]
 
 # Define the Hamiltonian matrix H[k]
+# Notice that this matrix is not Hermitian
+# I found that if you force it to be Hermitian results are the same
+# (see the commented lines)
+#
 function H(k)
     H_matrix = zeros(ComplexF64, (2*(2*Nm+1), 2*(2*Nm+1)))
     for n in -Nm:Nm
-#        for m in -Nm:Nm
-        for m in n:Nm
+       for m in -Nm:Nm
+#        for m in n:Nm
             if n == m
                 H_matrix[2*(n+Nm)+1:2*(n+Nm)+2, 2*(m+Nm)+1:2*(m+Nm)+2] = (n * W * σ0 + Q * σ3)
             end
             H_matrix[2*(n+Nm)+1:2*(n+Nm)+2, 2*(m+Nm)+1:2*(m+Nm)+2] += (1.0im)^(m-n) * besselj(m-n, F) * cos(k - (m-n)*π/2) * σ1
-            H_matrix[2*(m+Nm)+1:2*(m+Nm)+2, 2*(n+Nm)+1:2*(n+Nm)+2] = conj(H_matrix[2*(n+Nm)+1:2*(n+Nm)+2, 2*(m+Nm)+1:2*(m+Nm)+2])
+#            H_matrix[2*(m+Nm)+1:2*(m+Nm)+2, 2*(n+Nm)+1:2*(n+Nm)+2] = conj(H_matrix[2*(n+Nm)+1:2*(n+Nm)+2, 2*(m+Nm)+1:2*(m+Nm)+2])
         end
     end
     return H_matrix
@@ -43,8 +47,6 @@ E0(k) = -sqrt(Q^2 + cos(k)^2)
 # Define A[k] (eigenvector corresponding to the (2*Nm+1)-th eigenvalue)
 function A(k)
     eig = eigen(H(k))
-#    sorted_indices = sortperm(eig.values)
-#    return eig.vectors[:, sorted_indices[2*Nm+1]]
     return eig.vectors[:, 2*Nm+1]
 end
 
@@ -60,8 +62,6 @@ wa(k) = conj(Xa(k)) ⋅ [a0(k), b0(k)]
 # Define B[k] (eigenvector corresponding to the (2*Nm+2)-th eigenvalue)
 function B(k)
     eig = eigen(H(k))
-#    sorted_indices = sortperm(eig.values)
-#    return eig.vectors[:, sorted_indices[2*Nm+2]]
     return eig.vectors[:, 2*Nm+2]
 end
 
