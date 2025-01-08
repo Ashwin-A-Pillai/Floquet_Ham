@@ -4,7 +4,7 @@ using PyPlot
 
 
 # Constants (assuming these are defined elsewhere)
-Nm = 1  # Example value, replace with actual value
+Nm = 5  # Example value, replace with actual value
 Q = 0.1  # Example value, replace with actual value
 W = 1.0  # Example value, replace with actual value
 F = 0.5  # Example value, replace with actual value
@@ -93,6 +93,7 @@ wa2=abs.(wa.(kpts).^2)
 wb2=abs.(wb.(kpts).^2)
 
 plot(kpts,wb2-wa2, label="W difference")
+plot(kpts,wb2+wa2, label="W sum")
 PyPlot.show()
 exit(0)
 # Define Bound[l]
