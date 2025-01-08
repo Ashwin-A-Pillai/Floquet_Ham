@@ -73,7 +73,7 @@ end
 wb(k) = conj(Xb(k)) ⋅ [a0(k), b0(k)]
 
 
-kpts=range(-pi/2.0,pi/2.0,Nk)
+kpts=range(0,pi/2.0,Nk)
 band_struct=zeros(ComplexF64,Nk, (2*(2*Nm+1)))
 
 for (ik,k) in enumerate(kpts)
@@ -87,8 +87,11 @@ for n in 1:2*(2*Nm+1)
 end
 PyPlot.show()
 
+wa2=abs.(wa.(kpts).^2)
+wb2=abs.(wb.(kpts).^2)
 
-
+plot(kpts,wb2-wa2, label="W difference")
+PyPlot.show()
 exit(0)
 # Define Bound[l]
 Bound(l) = (-Nm-1 < l < Nm+1) ? 1 : 0
