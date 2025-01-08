@@ -4,10 +4,10 @@ using PyPlot
 
 
 # Constants (assuming these are defined elsewhere)
-Nm = 10  # Example value, replace with actual value
-Q = 1.0  # Example value, replace with actual value
+Nm = 2  # Example value, replace with actual value
+Q = 0.1  # Example value, replace with actual value
 W = 1.0  # Example value, replace with actual value
-F = 1.0  # Example value, replace with actual value
+F = 0.5  # Example value, replace with actual value
 Nk = 100 # Example value, replace with actual value
 
 # Pauli matrices
@@ -74,10 +74,21 @@ wb(k) = conj(Xb(k)) ⋅ [a0(k), b0(k)]
 
 
 kpts=range(-pi/2.0,pi/2.0,Nk)
-#print(wa.(kpts))
-plot(kpts,abs.(wb.(kpts).^2)+abs.(wb.(kpts).^2), label="weight 1")
-title("Weights for two site 1D model")
+band_struct=zeros(ComplexF64,Nk, (2*(2*Nm+1)))
+
+for (ik,k) in enumerate(kpts)
+    print("$k  \n")
+    diag_H = eigen(H(k))
+    band_struct[ik,:]=diag_H.values
+end
+
+for n in 1:2*(2*Nm+1)
+  plot(kpts,band_struct[:,n], label="Band $n")
+end
 PyPlot.show()
+
+
+
 exit(0)
 # Define Bound[l]
 Bound(l) = (-Nm-1 < l < Nm+1) ? 1 : 0
