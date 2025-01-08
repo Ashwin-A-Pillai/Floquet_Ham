@@ -4,7 +4,7 @@ using PyPlot
 
 
 # Constants (assuming these are defined elsewhere)
-Nm = 2  # Example value, replace with actual value
+Nm = 1  # Example value, replace with actual value
 Q = 0.1  # Example value, replace with actual value
 W = 1.0  # Example value, replace with actual value
 F = 0.5  # Example value, replace with actual value
@@ -19,11 +19,13 @@ Nk = 100 # Example value, replace with actual value
 function H(k)
     H_matrix = zeros(ComplexF64, (2*(2*Nm+1), 2*(2*Nm+1)))
     for n in -Nm:Nm
-        for m in -Nm:Nm
+#        for m in -Nm:Nm
+        for m in n:Nm
             if n == m
                 H_matrix[2*(n+Nm)+1:2*(n+Nm)+2, 2*(m+Nm)+1:2*(m+Nm)+2] = (n * W * σ0 + Q * σ3)
             end
             H_matrix[2*(n+Nm)+1:2*(n+Nm)+2, 2*(m+Nm)+1:2*(m+Nm)+2] += (1.0im)^(m-n) * besselj(m-n, F) * cos(k - (m-n)*π/2) * σ1
+            H_matrix[2*(m+Nm)+1:2*(m+Nm)+2, 2*(n+Nm)+1:2*(n+Nm)+2] = conj(H_matrix[2*(n+Nm)+1:2*(n+Nm)+2, 2*(m+Nm)+1:2*(m+Nm)+2])
         end
     end
     return H_matrix
@@ -77,7 +79,7 @@ kpts=range(0,pi/2.0,Nk)
 band_struct=zeros(ComplexF64,Nk, (2*(2*Nm+1)))
 
 for (ik,k) in enumerate(kpts)
-    print("$k  \n")
+    print("Doing $k is H(k) hermitian $(ishermitian(H(k))) \n")
     diag_H = eigen(H(k))
     band_struct[ik,:]=diag_H.values
 end
