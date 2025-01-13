@@ -35,11 +35,32 @@ function H(k)
     return H_matrix
 end
 
+function H_tb(k)
+  H_matrix = zeros(ComplexF64, (2, 2))
+  H_matrix = Q * σ3
+  H_matrix+= cos(k)*σ1
+  return H_matrix
+end
+
 # Define a0[k]
-a0(k) = -1/sqrt(2) * sqrt(1 - Q / sqrt(Q^2 + cos(k)^2))
+#a0(k) = -1/sqrt(2) * sqrt(1 - Q / sqrt(Q^2 + cos(k)^2))
 
 # Define b0[k]
-b0(k) = 1/sqrt(2) * sqrt(1 + Q / sqrt(Q^2 + cos(k)^2))
+#b0(k) = 1/sqrt(2) * sqrt(1 + Q / sqrt(Q^2 + cos(k)^2))
+
+# Build a0(k) b0(k) from diagonalization
+#
+function Build_a0_b0(kpts)
+    Nk=length(kpts)
+    a0=zeros(Complex{Float64},Nk)
+    b0=zeros(Complex{Float64},Nk)
+    for (ik,k) in enumerate(kpts)
+      diag_H = eigen(H_tb(k))
+      a0[ik]=diag_H.vectors[1,1]
+      b0[ik]=diag_H.vectors[2,1]
+    end
+  return a0,b0
+end
 
 # Define E0[k]
 E0(k) = -sqrt(Q^2 + cos(k)^2)
@@ -57,6 +78,9 @@ function Xa(k)
 end
 
 # Define wa[k]
+kpts=range(0,pi/2.0,Nk)
+a0,b0=Build_a0_b0(kpts)
+
 wa(k) = conj(Xa(k)) ⋅ [a0(k), b0(k)]
 
 # Define B[k] (eigenvector corresponding to the (2*Nm+2)-th eigenvalue)
@@ -75,7 +99,6 @@ end
 wb(k) = conj(Xb(k)) ⋅ [a0(k), b0(k)]
 
 
-kpts=range(0,pi/2.0,Nk)
 band_struct=zeros(ComplexF64,Nk, (2*(2*Nm+1)))
 
 for (ik,k) in enumerate(kpts)
